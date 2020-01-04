@@ -40,9 +40,9 @@ func Down(db *sql.DB) error {
 func CreateFile(shortDescr, packageName, pathTo string) error {
 	loc, _ := time.LoadLocation("UTC")
 	dt := time.Now().In(loc)
-	version := fmt.Sprintf("%d%d%d%d%d", dt.Year(), dt.Month(), dt.Day(), dt.Hour(), dt.Minute())
+	version := fmt.Sprintf("%d%02d%02d%02d%02d%02d", dt.Year(), dt.Month(), dt.Day(), dt.Hour(), dt.Minute(), dt.Second())
 	fName := fmt.Sprintf("%s_%s.go", version, shortDescr)
-	fmt.Printf("creating a file: %s", fName)
+	fmt.Printf("creating a file: %s\n", fName)
 	tmpl := fmt.Sprintf(`package %s
 
 import "github.com/wshaman/migrate"
