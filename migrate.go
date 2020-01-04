@@ -77,18 +77,18 @@ func down(db *sql.DB) error {
 	if err := ensureChangelogTable(db); err != nil {
 		return err
 	}
-	var id int64
+	var version int64
 	log.Println("Downgrading migration")
-	q := `SELECT id FROM db_changelog ORDER BY created DESC LIMIT 1;`
-	if err := db.QueryRow(q).Scan(&id); err != nil {
+	q := `SELECT version FROM db_changelog ORDER BY created DESC LIMIT 1;`
+	if err := db.QueryRow(q).Scan(&version); err != nil {
 		if err == sql.ErrNoRows {
 			log.Println("No migrations found")
 			return nil
 		}
 		return err
 	}
-	fmt.Printf("Last applied migration %d", id)
-	m, ok := migrations[id]
+	fmt.Printf("Last applied migration %d ", version)
+	m, ok := migrations[version]
 	if !ok {
 		fmt.Println(" can't be found")
 		return errors.New("no migration found")
@@ -98,7 +98,7 @@ func down(db *sql.DB) error {
 		log.Print("Fail (Error)")
 		return err
 	}
-	if _, err := db.Exec(`DELETE FROM db_changelog WHERE id=$1`, id); err != nil {
+	if _, err := db.Exec(`DELETE FROM db_changelog WHERE version=$1`, version); err != nil {
 		log.Print("WARN (Migration down, can't update table)")
 		return err
 	}

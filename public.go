@@ -2,11 +2,15 @@ package migrate
 
 import (
 	"database/sql"
+	"fmt"
+	"io/ioutil"
+	"path"
+	"time"
 )
 
 func txMigration(in string) string {
 	return `begin transaction;
-` + in + `
+` + in + `;
 commit transaction;`
 }
 
@@ -29,9 +33,28 @@ func Up(db *sql.DB) error {
 	return up(db)
 }
 
-func CreateFile(shortDescr string) {
-	//loc, _ := time.LoadLocation("UTC")
-	//dt := time.Now().In(loc)
-	//fName := fmt.Sprintf("%d%d%d%d%d_%s.go", dt.Year())
-	//fmt.Println(fName)
+func Down(db *sql.DB) error {
+	return down(db)
+}
+
+func CreateFile(shortDescr, packageName, pathTo string) error {
+	loc, _ := time.LoadLocation("UTC")
+	dt := time.Now().In(loc)
+	version := fmt.Sprintf("%d%d%d%d%d", dt.Year(), dt.Month(), dt.Day(), dt.Hour(), dt.Minute())
+	fName := fmt.Sprintf("%s_%s.go", version, shortDescr)
+	fmt.Printf("creating a file: %s", fName)
+	tmpl := fmt.Sprintf(`package %s
+
+import "github.com/wshaman/migrate"
+
+func init() {
+	migrate.RegisterSQL(%s, 
+		"YOURNAME@HERE", 
+		"%s", 
+		`+"`"+`UP_SQL_MIGRATION`+"`"+`,
+		`+"`"+`DOWN_SQL_MIGRATION`+"`"+`,
+	)
+}
+`, packageName, version, shortDescr)
+	return ioutil.WriteFile(path.Join(pathTo, fName), []byte(tmpl), 0622)
 }
