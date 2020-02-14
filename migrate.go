@@ -2,9 +2,7 @@ package migrate
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
-	"log"
 	"sort"
 )
 
@@ -14,20 +12,20 @@ type info struct {
 	version     int64
 	author      string
 	description string
-	fnUp        func(db *sql.DB) error
-	fnDown      func(db *sql.DB) error
+	upSQL       string
+	downSQL     string
 }
 
 var migrations = map[int64]info{}
 
 // register registers a new database migration with associated metadata.
-func register(version int64, author string, description string, fnUp, fnDown func(db *sql.DB) error) {
+func register(version int64, author, description, upSQL, downSQL string) {
 	migrations[version] = info{
 		version:     version,
 		author:      author,
 		description: description,
-		fnUp:        fnUp,
-		fnDown:      fnDown,
+		upSQL:       upSQL,
+		downSQL:     downSQL,
 	}
 }
 func versions(m map[int64]info) []int64 {
@@ -39,6 +37,28 @@ func versions(m map[int64]info) []int64 {
 	return v
 }
 
+func txExec(tx *sql.Tx, query string, v ...interface{}) error {
+	if _, err := tx.Exec(query, v...); err != nil {
+		if e := tx.Rollback(); e != nil {
+			return e
+		}
+		return err
+	}
+	return nil
+}
+
+func logf(f string, v ...interface{}) {
+	fmt.Printf(f, v...)
+}
+
+func logln(f string) {
+	fmt.Println(f)
+}
+
+func sync(db *sql.DB) error {
+	return nil
+}
+
 // Run sequentially executes registered DB migrations starting at v0.
 func up(db *sql.DB) error {
 	if err := ensureChangelogTable(db); err != nil {
@@ -46,28 +66,32 @@ func up(db *sql.DB) error {
 	}
 	for _, k := range versions(migrations) {
 		m := migrations[k]
-		log.Printf("Executing migration v%d %s <%s>", m.version, m.description, m.author)
+		logf("Executing migration v%d %s <%s>", m.version, m.description, m.author)
 		ex, err := exists(db, m.version)
 		if err != nil {
-			log.Print("Fail (Error)")
+			logln("Fail (Error)")
 			return err
 		}
 		if ex {
-			log.Print("OK (EXISTS)")
+			logln("OK (EXISTS)")
 		} else {
-			err := m.fnUp(db)
+			tx, err := db.Begin()
 			if err != nil {
 				return err
 			}
-			_, err = db.Exec(`
-				INSERT INTO
-					db_changelog(version, author, description, created)
-							VALUES($1, $2, $3, CURRENT_TIMESTAMP)
-				`, m.version, m.author, m.description)
-			if err != nil {
+			if err := txExec(tx, m.upSQL); err != nil {
 				return err
 			}
-			log.Print("OK")
+			if err := txExec(tx, `
+INSERT INTO db_changelog(version, author, description, rollback, created) VALUES($1, $2, $3, $4, CURRENT_TIMESTAMP);
+	`, m.version, m.author, m.description, m.downSQL); err != nil {
+				return err
+			}
+			if err := tx.Commit(); err != nil {
+				logln("Fail (Error)")
+				return err
+			}
+			logln("OK")
 		}
 	}
 	return nil
@@ -77,32 +101,35 @@ func down(db *sql.DB) error {
 	if err := ensureChangelogTable(db); err != nil {
 		return err
 	}
-	var version int64
-	log.Println("Downgrading migration")
-	q := `SELECT version FROM db_changelog ORDER BY created DESC LIMIT 1;`
-	if err := db.QueryRow(q).Scan(&version); err != nil {
+
+	var m info
+	logln("Downgrading migration")
+	q := `SELECT version, rollback, author, description FROM db_changelog ORDER BY created DESC LIMIT 1;`
+	if err := db.QueryRow(q).Scan(&m.version, &m.downSQL, &m.author, &m.description); err != nil {
 		if err == sql.ErrNoRows {
-			log.Println("No migrations found")
+			logln("No migrations found")
 			return nil
 		}
 		return err
 	}
-	fmt.Printf("Last applied migration %d ", version)
-	m, ok := migrations[version]
-	if !ok {
-		fmt.Println(" can't be found")
-		return errors.New("no migration found")
-	}
-	fmt.Printf("By: %s. %s\n", m.author, m.description)
-	if err := m.fnDown(db); err != nil {
-		log.Print("Fail (Error)")
+	logf("Last applied migration #%d, %s, by: %s\n", m.version, m.description, m.author)
+	tx, err := db.Begin()
+	if err != nil {
 		return err
 	}
-	if _, err := db.Exec(`DELETE FROM db_changelog WHERE version=$1`, version); err != nil {
-		log.Print("WARN (Migration down, can't update table)")
+	if err := txExec(tx, m.downSQL); err != nil {
+		logf("Fail (Error)")
 		return err
 	}
-	log.Print("OK (Done)")
+	if err := txExec(tx, `DELETE FROM db_changelog WHERE version=$1`, m.version); err != nil {
+		logf("WARN (Migration down, can't update table)")
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		logf("Fail (Error)")
+		return err
+	}
+	logf("OK (Done)")
 	return nil
 }
 
@@ -125,7 +152,8 @@ func ensureChangelogTable(db *sql.DB) error {
     version     BIGINT    NOT NULL,
     author      TEXT      NOT NULL,
     description TEXT      NOT NULL,
-    created     TIMESTAMP NOT NULL
+    rollback 	TEXT NOT NULL,
+    created     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 `
 	if _, err := db.Exec(query); err != nil {

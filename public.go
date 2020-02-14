@@ -8,25 +8,9 @@ import (
 	"time"
 )
 
-func txMigration(in string) string {
-	return `begin transaction;
-` + in + `;
-commit transaction;`
-}
-
 // RegisterSQL registers a new database migration using supplied raw SQL.
 func RegisterSQL(version int64, author, description, queryUp, queryDown string) {
-	fnUp := func(db *sql.DB) error {
-		query := txMigration(queryUp)
-		_, err := db.Exec(query)
-		return err
-	}
-	fnDown := func(db *sql.DB) error {
-		query := txMigration(queryDown)
-		_, err := db.Exec(query)
-		return err
-	}
-	register(version, author, description, fnUp, fnDown)
+	register(version, author, description, queryUp, queryDown)
 }
 
 func Up(db *sql.DB) error {
