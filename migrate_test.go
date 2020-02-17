@@ -31,7 +31,7 @@ func Test_checkTbl(t *testing.T) {
 }
 
 func Test_versions(t *testing.T) {
-	in := map[int64]info{
+	in := map[int64]migration{
 		3: {version: 3},
 		2: {version: 2},
 		7: {version: 7},

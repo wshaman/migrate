@@ -12,5 +12,6 @@ CI tool, and you don't want to mess all this with code. So all migrations are in
 * Use Time as a migration ID
 * Keep all he migration applied in a table, not the last one
 * Keep migrations in go files to be available everywhere
+* Allows to run autoresolver for migrations were removed and should be rolled back
 
-Take a look at `example` folder to get usage example 
+Take a look at `example` folder to get usage example. 

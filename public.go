@@ -21,6 +21,10 @@ func Down(db *sql.DB) error {
 	return down(db)
 }
 
+func Sync(db *sql.DB) error {
+	return sync(db)
+}
+
 func CreateFile(shortDescr, packageName, pathTo string) error {
 	loc, _ := time.LoadLocation("UTC")
 	dt := time.Now().In(loc)

@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -50,7 +49,8 @@ func main() {
 	}
 	db, err := dbConnect()
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
+		fmt.Println(err.Error())
 	}
 	command := strings.ToLower(os.Args[1])
 	switch command {
@@ -58,6 +58,8 @@ func main() {
 		err = migrate.Up(db)
 	case "down":
 		err = migrate.Down(db)
+	case "sync":
+		err = migrate.Sync(db)
 	case "create":
 		if len(os.Args) < 3 {
 			help()
@@ -68,6 +70,6 @@ func main() {
 		help()
 	}
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err.Error())
 	}
 }
