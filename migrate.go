@@ -139,7 +139,7 @@ func down(db *sql.DB) error {
 		}
 		return err
 	}
-	logf("Last applied migration %s\n", m)
+	logf("Last applied migration %s\n", m.String())
 	if err := doRollback(db, m); err != nil {
 		logln("FAILED")
 		return err

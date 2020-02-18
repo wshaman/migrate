@@ -65,7 +65,7 @@ func main() {
 			help()
 			os.Exit(1)
 		}
-		err = migrate.CreateFile(os.Args[2], "main", "./")
+		err = migrate.CreateFile(os.Args[2], "main", "./", true)
 	default:
 		help()
 	}
