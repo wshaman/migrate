@@ -85,7 +85,8 @@ func sync(db *sql.DB) error {
 		toRemove = append(toRemove, mig)
 	}
 	logf("found %d for migrations to be rolled back\n", len(toRemove))
-	for _, v := range toRemove {
+	for i := len(toRemove) - 1; i >= 0; i-- {
+		v := toRemove[i]
 		logf(v.String())
 		if err := doRollback(db, v); err != nil {
 			logln(" ...falied")
